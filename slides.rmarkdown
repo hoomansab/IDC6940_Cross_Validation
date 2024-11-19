@@ -27,6 +27,7 @@ self-contained: true
 
 ---
 
+
 ## Introduction 
 
 #### Cross-validation Overview
@@ -187,6 +188,7 @@ $$
 
 ### Heat Map
 
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 # Load the dataset
 dataset <- read.csv("/Users/hoomansabarou/Downloads/Martensite Start-Temp.csv")
@@ -210,11 +212,13 @@ ggplot(cor_data, aes(Var1, Var2, fill = Freq)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
   labs(title = "Correlation Heatmap of Variables", x = "", y = "")
 ```
+
  - Red (1.0): Indicates a strong positive correlation
  - Blue (-1.0): Indicates a strong negative correlation
  - White (0): Indicates no correlation
 
 ### Martensite Starting Temperature
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
@@ -228,9 +232,11 @@ dataset %>%
 
 
 ```
+
 - Removing extreme observations
 
 ### Carbon Content
+
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 # Scatter plot for Carbon content vs Martensite Start Temperature 
@@ -242,6 +248,7 @@ dataset %>%
        y = "Martensite Start Temperature (Ms)") +
   theme_minimal()
 ```
+
 
 - Removing observations with Carbon = 0 
 ::: 
@@ -475,6 +482,7 @@ In our study, we analyzed a dataset from @wentzien2024machine Martensite dataset
 
 - Martensite start temperature (Ms) is  target variable.
 - "C","Mn","Si","Cr","Ni" are Predictor variables
+
 ```{r correlation-matrix, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Correlation_Matrix"}
 library(ggplot2)
 library(reshape2)
@@ -488,6 +496,7 @@ corr_plot <- corrplot(correlation_matrix, method = "circle")
 
 
 ```
+
 
 
 ## Modeling and Results
@@ -504,6 +513,7 @@ In our dataset, which focuses on predicting the Martensite Start Temperature (Ms
  
  $$M_s = 746.99 - 254.85 C - 24.24 Mn - 13.28 Si - 7.8 Cr - 14.64 Ni $$
  
+
 ```{r Linear Regression Coefficients, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Linear Regression Coefficients"}
 library(caret)
 library(dplyr)
@@ -539,6 +549,7 @@ rownames(coefficients_table) <- NULL
 kable(coefficients_table, caption = "Linear Regression Model Coefficients")
 ```
 
+
 ***Statistics***
 
 Residual standard error: 54.28 on 1230 degrees of freedom
@@ -559,6 +570,7 @@ The results of this analysis reveal that the models tested with 5-Fold Cross-Val
 ::: {.panel-tabset}
 
 ### K-fold Cross-Validation
+
 
 ```{r  K Fold Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="K Fold Cross-Validation"}
 train_kfold <- trainControl(method = "cv", number = 5)
@@ -596,7 +608,9 @@ kfold_df %>% kable()
 
 ```
 
+
 ### LOOCV Cross-Validation
+
 
 ```{r LOOCV Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="LOOCV Cross-Validation"}
 
@@ -622,7 +636,9 @@ loocv_df <- data.frame(Measure_of_Error, Result_Value)
 loocv_df %>% kable()
 
 ```
+
 ### Nested Cross-Validation
+
 
 ```{r Nested Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Nested Cross-Validation"}
 
@@ -667,6 +683,7 @@ nested_cv_df %>% kable()
 
 
 ```
+
 ::: 
 
 
@@ -678,6 +695,7 @@ Using our dataset, Support Vector Machines (SVM) with a radial kernel help predi
 ::: {.panel-tabset}
 
 ### SVM K-Fold Cross-Validation
+
 ```{r SVM_K Fold Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="SVM_K Fold Cross-Validation"}
 library(e1071)
 library(caret)
@@ -734,7 +752,9 @@ svm_kfold_df %>% kable()
 ```
 
 
+
 ### SVM LOOCV Cross-Validation
+
 
 ```{r SVM_LOOCV Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="SVM_LOOCV Cross-Validation"}
 library(e1071)
@@ -766,7 +786,9 @@ kable(svm_loocv_df)
 
 ```
 
+
 ### SVM Nested Cross-Validation
+
 
 ```{r SVM_Nested Cross-Validation, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="SVM_Nested Cross-Validation"}
 set.seed(123)
@@ -810,11 +832,13 @@ kable(svm_nested_cv_df)
 
 ```
 
+
 ::: 
 
 ## Model Comparision Results
 
 In this study, we compared the performance of Linear Regression and Support Vector Machine (SVM) models in predicting the martensite start temperature (Ms). Using 5-fold cross-validation, we found that SVM outperformed Linear Regression, achieving a lower MAE (~21 vs ~33), a higher R² (~0.9 vs ~0.55), and a lower RMSE (~25 vs ~48), highlighting its superior accuracy and reliability in making predictions.
+
 
 ```{r Model Comparision Results, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Model Comparision Results" }
 
@@ -844,7 +868,9 @@ Comparison_df %>%
 
 ```
 
+
 ## Model Comparision Plot
+
 
 ```{r Model Comparision Results Plot, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Model Comparision Results Plot"}
 
@@ -870,6 +896,7 @@ print(comparison_plot)
 ggsave(filename = "model_comparison_plot.png", plot = comparison_plot, width = 8, height = 6, dpi = 400)
 
 ```
+
 
 ## Conclusion: Overview
 
@@ -900,3 +927,4 @@ Nested Cross-validation
 
 
 ## References
+
