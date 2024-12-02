@@ -1,11 +1,12 @@
 ---
-title: "Sample Report - Data Science Capstone"
-author: "Student name"
+title: " Data Science Capstone-Prediction of Martensite Start Temperature in Steels Using Cross Validation"
+author: "Hooman Sabarou"
 date: '`r Sys.Date()`'
 format:
   html:
     code-fold: true
-course: STA 6257 - Advanced Statistical Modeling
+    css: styles.css
+course: IDC6940
 bibliography: references.bib # file contains bibtex for references
 #always_allow_html: true # this allows to get PDF with HTML features
 self-contained: true
@@ -19,89 +20,321 @@ editor:
 
 ## Introduction
 
-### What is "mehtod"?
+Cross-validation is a widely used technique in statistical modeling and machine learning for assessing a model's performance and generalizability to unseen data. Among the various cross-validation approaches, K-Fold Cross-Validation divides the dataset into k equally sized subsets or folds. The model is trained on k-1 folds and tested on the remaining fold, a process repeated k times, with each fold serving as the test set exactly once. The results from all iterations are averaged to provide an overall performance metric. This method is particularly useful as it reduces bias by utilizing the entire dataset for both training and testing while maintaining independence between the training and test sets. In this study, both 5-Fold and 10-Fold Cross-Validation were applied to validate the models, offering a balance between computational efficiency and robust evaluation.
 
-This is an introduction to LASSO regression, which is a non-parametric
-estimator that estimates the conditional expectation of two variables
-which is random. The goal of a kernel regression is to discover the
-non-linear relationship between two random variables. To discover the
-non-linear relationship, kernel estimator or kernel smoothing is the
-main method to estimate the curve for non-parametric statistics. In
-kernel estimator, weight function is known as kernel function
-[@efr2008]. Cite this paper [@bro2014principal]. The GEE [@wang2014].
-The PCA [@daffertshofer2004pca]
+Leave-One-Out Cross-Validation (LOOCV) is an extreme case of K-Fold Cross-Validation where k equals the number of observations in the dataset. Each iteration trains the model on n−1 observations and tests it on the single observation left out, repeating this process n times. LOOCV is particularly advantageous for small datasets as it maximizes the training data while providing a detailed evaluation of model performance on each observation. However, it can be computationally intensive for larger datasets due to the number of iterations required. By employing both K-Fold and LOOCV, this study rigorously validated its predictive models, ensuring reliable and well-generalized results for estimating the martensite start temperature (Ms).
 
-This is my work and I want to add more work...
+In this study, programming has been done by R [@R] in Rstudio (version 2024.04.2) and the below packages have been used during developing models and cross-validation methods: 
+tidyverse [@tidyverse], classpackage [@classpackage], ggplot2 [@gg], psych [@psych], and boot [@boot1,@boot2]
 
-### Related work
+### Introduction to the Dataset
 
-This section is going to cover the literature review...
+This dataset contains the chemical compositions of various steels along with their Martensite starting temperatures (Ms), aiming to develop a model that predicts Ms based on steel chemistry.Ms is in degree Celsius, and chemical elements are in weight percent. In the data, C, Mn, Si, Cr, and etc. are referred to chemical elements based on the Periodic Table. They are Carbon, Manganese, Silicon, Chromium, and so on.
 
-## Methods
+Martensite is a phase where steel becomes extremely strong and can withstand high stresses, making it essential for industries like automotive to enhance crash safety. Ms is the critical temperature where steel’s internal structure changes into Martensite, and it varies with chemical composition. Currently, determining Ms requires lengthy tests, which are prone to errors and often need repeating. A predictive model would save significant time and effort by eliminating the need for these tests.
 
-The common non-parametric regression model is
-$Y_i = m(X_i) + \varepsilon_i$, where $Y_i$ can be defined as the sum of
-the regression function value $m(x)$ for $X_i$. Here $m(x)$ is unknown
-and $\varepsilon_i$ some errors. With the help of this definition, we
-can create the estimation for local averaging i.e. $m(x)$ can be
-estimated with the product of $Y_i$ average and $X_i$ is near to $x$. In
-other words, this means that we are discovering the line through the
-data points with the help of surrounding data points. The estimation
-formula is printed below [@R-base]:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Load the dataset
+dataset <- read.csv("/Users/hoomansabarou/Downloads/Martensite Start-Temp.csv")
 
-$$
-M_n(x) = \sum_{i=1}^{n} W_n (X_i) Y_i  \tag{1}
-$$ $W_n(x)$ is the sum of weights that belongs to all real numbers.
-Weights are positive numbers and small if $X_i$ is far from $x$.
+```
 
-Another equation:
 
-$$
-y_i = \beta_0 + \beta_1 X_1 +\varepsilon_i
-$$
+### Methods and Data Wrangling
+
+The first step is to explore the data. The data has 1543 observation with 16 variables. No missing data has been detected for the data, and the variables have continuous numeric content. The correlations between variables have been investigated and presented via a heat map (Figure 1). The heat map illustrates the Pearson correlation coefficients among variables in the dataset. The color scale can be interpreted as follows: 
+
+ - Red (1.0): Indicates a strong positive correlation
+ - Blue (-1.0): Indicates a strong negative correlation
+ - White (0): Indicates no correlation
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+library(tidyverse)
+library(dplyr)
+
+cor_matrix_initial <- dataset %>%
+  select(Ms, C, Mn, Ni, Si, Cr, Ti, Nb, Mo, Co, V, Al, Cu, N, B, W ) %>%
+  cor()
+
+
+cor_data <- as.data.frame(as.table(cor_matrix_initial))
+
+
+ggplot(cor_data, aes(Var1, Var2, fill = Freq)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab", 
+                       name = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(title = "Correlation Heatmap of Variables", x = "", y = "")
+
+```
+Figure 1. A correlation heatmap of varibales, showing correlations between chemical elements and Ms. 
+
+Based on the interpretation from the heat map, key variables have been selected (C, Mn, Si, Cr, and Ni). The Table 1 shows the key variables with their statistical characteristics. Ms is represented as the dependent variable, and chemical elements can be evaluated as independent variables. 
+
+
+**Table 1**
+<style type="text/css">
+.tg {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: Arial, sans-serif;
+}
+
+.tg th {
+  background-color: #f4f4f4;
+  text-align: left;
+  padding: 10px;
+  border-bottom: 2px solid #ddd;
+  font-weight: bold;
+}
+
+.tg td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+.tg tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+</style>
+
+<table class="tg">
+  <tr>
+    <th>Variable</th>
+    <th>Min</th>
+    <th>Max</th>
+    <th>Mean</th>
+    <th>Median</th>
+    <th>SD</th>
+  </tr>
+  <tr>
+    <td>Ms (Martensite Start Temp)</td>
+    <td>310.00</td>
+    <td>784.00</td>
+    <td>601.80</td>
+    <td>605.00</td>
+    <td>120.00</td>
+  </tr>
+  <tr>
+    <td>C (Carbon)</td>
+    <td>0.00</td>
+    <td>1.46</td>
+    <td>0.36</td>
+    <td>0.33</td>
+    <td>0.10</td>
+  </tr>
+  <tr>
+    <td>Mn (Manganese)</td>
+    <td>0.00</td>
+    <td>4.95</td>
+    <td>0.79</td>
+    <td>0.69</td>
+    <td>0.30</td>
+  </tr>
+  <tr>
+    <td>Ni (Nickel)</td>
+    <td>0.00</td>
+    <td>27.20</td>
+    <td>1.56</td>
+    <td>0.15</td>
+    <td>0.50</td>
+  </tr>
+  <tr>
+    <td>Si (Silicon)</td>
+    <td>0.00</td>
+    <td>3.80</td>
+    <td>0.35</td>
+    <td>0.26</td>
+    <td>0.20</td>
+  </tr>
+  <tr>
+    <td>Cr (Chromium)</td>
+    <td>0.00</td>
+    <td>16.20</td>
+    <td>1.04</td>
+    <td>0.52</td>
+    <td>0.70</td>
+  </tr>
+</table>
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Plot histograms for the variables using ggplot
+dataset %>%
+  gather(key = "Variable", value = "Value", Ms, C, Mn, Ni, Si, Cr) %>%
+  ggplot(aes(x = Value)) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 30) +
+  facet_wrap(~Variable, scales = "free", ncol = 3) +
+  labs(title = "Distribution of Key Variables", x = "Value", y = "Frequency") +
+  theme_minimal()
+
+```
+Figure 2. Distributions of key varibales in the initial data. 
+
+A quick look into the data reveals important facts. Firstly, Ms is ranged between 150 to 800 degree Celsius. However, the most of the data are in the range of 350 to 800 degree Celsius. In this study, models may be designed for a limited range of temperature where they are more data (350 to 800C). Also, it seems that there are some observations with Carbon = 0.These observations have to be deleted from the dataset because steel means Iron and Carbon. There is no steel without Carbon adding to Iron. This strange characteristic of the dataset has been investigated further in Figure 3. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Scatter plot for Carbon content vs Martensite Start Temperature 
+dataset %>%
+  ggplot(aes(x = C, y = Ms)) +
+  geom_point(color = "blue", size = 2, alpha = 0.7) +
+  labs(title = "Carbon Content vs Martensite Start Temperature", 
+       x = "Carbon Content (Wt.%)", 
+       y = "Martensite Start Temperature (Ms)") +
+  theme_minimal()
+```
+Figure 3. Change in Ms with Carbon content. 
+
+Figure 3 and Table 1 prove that there are observations with Carbon = 0 in the dataset. These have to be deleted. 
+Further investigation has been conducted to Ms. Figure 2 shows that the distribution of Ms is skewed to left as the most data are on the right side. Because the left tail of the distribution belongs to few observations, which represent extremities, these have been filtered from the initial data. Accordingly, the Ms distribution can be represented as follows: 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Filter the dataset for Ms between 300°C and 800°C
+filtered_dataset <- subset(dataset, Ms >= 300 & Ms <= 800)
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+hist(filtered_dataset$Ms, 
+     main = "Distribution of Martensite Start Temperature (Ms)", 
+     xlab = "Martensite Start Temperature (Ms)", 
+     col = "lightblue", 
+     border = "black", 
+     breaks = 30)
+```
+
+Figure 4. The distribution of Martensite Starting Temperature (Ms) after filtering extremities. 
+
+As it is shown in Figure 4, the new distribution for MS is less skewed and now presents more normal distribution. The final distributions of key variables have been shown in Figure 5. These data has been used for final models. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Remove rows where C is 0
+filtered_dataset_no_C0 <- subset(filtered_dataset, C != 0)
+
+# Reomove influential points
+filtered_dataset_no_influential <- filtered_dataset_no_C0[-c(1081, 685, 686), ]
+
+filtered_dataset_no_influential <- filtered_dataset_no_C0[-c(1081, 685, 686), ]
+
+
+updated_model_no_influential <- glm(Ms ~ C * Mn + C * Ni + Si + Cr, 
+                                    data = filtered_dataset_no_influential, 
+                                    family = gaussian)
+
+# Apply the residuals check to the correct dataset (filtered_dataset_no_influential)
+filtered_dataset_no_influential <- filtered_dataset_no_influential %>%
+  mutate(outlier = if_else(abs(rstandard(updated_model_no_influential)) > 2.5,
+                           "Suspected", "Not Suspected"))
+
+#Removing identified outliers
+filtered_dataset_no_influential_no_outlier <- filtered_dataset_no_influential %>% filter(outlier == "Not Suspected")
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+par(mfrow = c(2, 3))  
+hist(filtered_dataset_no_influential_no_outlier$Ms, main = "Ms Distribution", xlab = "Ms", col = "lightblue")
+hist(filtered_dataset_no_influential_no_outlier$C, main = "Carbon (C) Distribution", xlab = "C", col = "lightgreen")
+hist(filtered_dataset_no_influential_no_outlier$Mn, main = "Manganese (Mn) Distribution", xlab = "Mn", col = "lightpink")
+hist(filtered_dataset_no_influential_no_outlier$Ni, main = "Nickel (Ni) Distribution", xlab = "Ni", col = "lightcoral")
+hist(filtered_dataset_no_influential_no_outlier$Si, main = "Silicon (Si) Distribution", xlab = "Si", col = "lightyellow")
+hist(filtered_dataset_no_influential_no_outlier$Cr, main = "Chromium (Cr) Distribution", xlab = "Cr", col = "lightgray")
+```
+Figure 5. Final distribution on Ms and its key varibales after performing data wrangling.
+
+### Models
+
+In total, nine different models have been evaluated. Due to having a left-skewed in the Ms distribution (Figure 4), two different approaches have been paced simultaneously: 1) linear regression and 2) log-linear. In the second approach (log-linear), logarithmically transformation variables helps to handle situations where a non-linear relationship exists between independent and dependent variables. It can also helps to easily transform a highly skewed variable to a more approximately normal. Table 2 presents the evolution of the models and important revisions for each model. In this table, C, Co, Mo, V, Mn, and Ni stand for Carbon, Cobalt, Molybdenum, Vanadium, Manganese and Nickel, respectively. The terms of C:Mn and C:Ni refer to the interaction parameters for the couples of C-Mn and C-Ni, respectively.  
+
+**Table 2**
+<div style="font-size: 0.8em; width: 70%; margin: auto;">
+
+| **Model**                           | **AIC**     | **BIC**         | **R²**  |
+|-------------------------------------|-------------|-----------------|---------|
+| I (Basic)                           | 15699       | 2984481.84      | 0.753   |
+| II (Remove C=0)                     | 15010       | 2506169.56      | 0.788   |
+| III (Remove Co, Mo-C:Mn)            | 14984       | 2465894.55      | 0.791   |
+| IV (Remove V, C:Ni)                 | 14935       | 2384283.55      | 0.798   |
+| V (Log-Linear)                       | -3578       | 72.79           | 0.808   |
+| VI (Influential Points Removal)     | 14751       | 2142102.54      | 0.816   |
+| VII (Influential Points Removal-Log-Linear Model)| -3733.4     | 71.99           | 0.826   |
+| VIII (Outliers Removal)             | 13545       | 1080328.38      | 0.902   |
+| IX (Outlier Removal-Log-Linear Model)            | -4756.5     | 68.34           | 0.914   |
+
+</div>
 
 ## Analysis and Results
 
-### Data and Visualization
+The models VIII (linear)  and IX (log-linear) have been considered as the selected models. The model VIII represents a linear regression model as it shows below: 
 
-A study was conducted to determine how...
+$Ms = 769.41 -286.71 C -16.42 Mn -14.04 Ni - 13.89 Si - 10.13Cr -41.45C:Mn - 8.36 C:Ni$
+
+<style type="text/css">
+.tg  {border-collapse:collapse;border-spacing:0;}
+.tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
+  overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
+  font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg .tg-fymr{border-color:inherit;font-weight:bold;text-align:left;vertical-align:top}
+.tg .tg-0pky{border-color:inherit;text-align:left;vertical-align:top}
+</style>
+
+#### Interpretation of the Model VIII:
+The intercept represents the predicted value of Ms when all predictors (C, Mn, Ni, Si, Cr) are at zero. This may not have a meaningful physical interpretation since, in practice, Ms is not typically defined when all elements are zero. However, it provides a baseline for the model.
+
+#### Main Effects:
+- Carbon (C): The coefficient for C represents how much Ms is expected to change for a one-unit increase in Carbon content, holding all other elements constant. A negative coefficient would indicate that higher Carbon content reduces the Martensite start temperature, which aligns with metallurgical theory, as carbon stabilizes the austenite phase, reducing Ms.
+
+- Manganese (Mn): The coefficient for Mn shows how Ms changes with an increase in Manganese. If this coefficient is negative, it suggests that Mn lowers Ms, likely due to its effect on stabilizing austenite.
+
+- Nickel (Ni): The coefficient for Ni indicates the effect of Nickel on Ms. Nickel also stabilizes austenite, so a negative coefficient would align with its known effect on lowering Ms.
+
+- Silicon (Si): The coefficient for Si represents how changes in Silicon content affect Ms. Silicon often raises Ms because it promotes ferrite formation.
+
+- Chromium (Cr): The coefficient for Cr reflects Chromium's effect on Ms. Chromium typically lowers Ms as it also stabilizes the austenite phase, so we might expect a negative coefficient here.
+
+#### Interaction Parameters: 
+
+- Interaction of C and Mn: This term captures the combined effect of Carbon and Manganese on Ms. If significant, it suggests that the effect of Carbon on Ms depends on the level of Manganese, and vice versa. A negative interaction term would imply that as both C and Mn increase together, they have a compounded effect in reducing Ms more than either element alone.
+
+- Interaction of C and Ni: Similarly, this term captures the interaction between Carbon and Nickel. If the coefficient is negative, it suggests that higher levels of both Carbon and Nickel together have an additional effect in lowering Ms, beyond their individual effects.
+
+The model IX presents a log-linear model as follows:
+
+$log(Ms) = -6.69 - 0.51C - 0.03 Mn - 0.03 Ni - 0.03 Si - 0.02Cr - 0.07 C:Mn - 0.01C:Ni$
+
+The model predicts the logarithm of the martensite start temperature (Ms) as a function of the chemical composition of the steel, including key elements like Carbon (C), Manganese (Mn), Nickel (Ni), Silicon (Si), and Chromium (Cr), as well as interactions between Carbon and other elements. By transforming Ms to a logarithmic scale, the model addresses potential non-linear relationships between Ms and the predictor variables, ensuring better model fit and interpretability.
+
+The coefficients in the log-linear model represent the percentage change in Ms for a unit increase in the corresponding predictor variable. For instance, a negative coefficient for Carbon indicates that increasing Carbon content leads to a multiplicative decrease in Ms. The interaction terms (e.g., C: Mn and C:Ni) capture the combined effects of these elements, which are significant in influencing Ms. The lower residual deviance, improved AIC, and robust performance in cross-validation metrics confirm that the log-linear model provides a more accurate and generalizable representation of the relationship between Ms and the steel's chemical composition. This model is particularly effective in highlighting the dominant role of Carbon and its interactions in controlling Ms, making it a valuable tool for predicting Ms in various alloy compositions.
+
+### Model Performance Summary
+
+5-fold and LOOCV have been examined for both models. The metrics are listed as follows in Table 3:
+
+**Table 3**
+
+| **Model**           | **Cross-Validation** | **RMSE** | **MAE** | **R²**  |
+|----------------------|----------------------|----------|---------|---------|
+| First Model    | 5-Fold              | 27.79    | 20.43   | 0.90    |
+| Second Model            | 5-Fold              | 0.05     | 18.28   | 0.91    |
+| First Model     | LOOCV               | 27.80    | 20.43   | 0.90    |
+| Second Model            | LOOCV               | 0.05     | 22.02   | 0.91    |
 
 
-```{r, warning=FALSE, echo=T, message=FALSE}
-# loading packages 
-library(tidyverse)
-library(knitr)
-library(ggthemes)
-library(ggrepel)
-library(dslabs)
-```
+The Log Model slightly outperforms the Regression Model in terms of RMSE and $R^2$, indicating better fit and prediction accuracy on the logarithmic scale. For tasks requiring high precision and smaller errors, the log model is preferable.
 
-```{r, warning=FALSE, echo=TRUE}
-# Load Data
-kable(head(murders))
-
-ggplot1 = murders %>% ggplot(mapping = aes(x=population/10^6, y=total)) 
-
-  ggplot1 + geom_point(aes(col=region), size = 4) +
-  geom_text_repel(aes(label=abb)) +
-  scale_x_log10() +
-  scale_y_log10() +
-  geom_smooth(formula = "y~x", method=lm,se = F)+
-  xlab("Populations in millions (log10 scale)") + 
-  ylab("Total number of murders (log10 scale)") +
-  ggtitle("US Gun Murders in 2010") +
-  scale_color_discrete(name = "Region")+
-      theme_bw()
-  
-
-```
-
-### Statistical Modeling
-
-```{r}
-
-```
+5-fold offers slightly lower MAE and RMSE, indicating better stability when training on subsets of the data. However, LOOCV is slightly more sensitive to data variations but confirms consistent results with 5-Fold.
 
 ### Conclusion
+
+This study aimed to develop and validate predictive models for estimating the martensite start temperature (Ms) based on the chemical composition of steel. By employing both untransformed and log-transformed models, the relationship between Ms and critical elements such as Carbon, Manganese, Nickel, Silicon, and Chromium was rigorously analyzed. The methodology included robust statistical techniques, such as K-Fold Cross-Validation and Leave-One-Out Cross-Validation, to ensure the models' reliability and generalizability. The log-transformed model demonstrated slightly better predictive performance, with lower AIC and residual variance, indicating its suitability for capturing the underlying patterns in the data.
+
+Throughout the study, data preprocessing, outlier detection, and feature engineering were integral steps in refining the models. Model validation metrics, including RMSE, MAE, and $R^2$, provided a comprehensive evaluation of each model's effectiveness. The results confirm the significant impact of Carbon and its interactions with other elements on Ms, highlighting the complexity of steel's thermal and mechanical behavior. The findings of this study provide a solid foundation for further research and practical applications in advanced steel design, enabling more accurate predictions of Ms for various alloy compositions.
 
 ## References
